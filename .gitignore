@@ -1,0 +1,4 @@
+vangogh_xml/
+*.py
+vangogh_letters_backup.json
+vangogh_raw.json
