@@ -273,7 +273,26 @@ select:focus{border-color:var(--accent-light)}
   transition:box-shadow 0.2s;
 }
 .img-card:hover{box-shadow:var(--shadow-md)}
-.img-card img{width:100%;display:block;aspect-ratio:4/3;object-fit:cover}
+.img-card img{width:100%;display:block;aspect-ratio:4/3;object-fit:cover;cursor:pointer}
+
+/* ── Lightbox ── */
+.lightbox{
+  display:none;position:fixed;inset:0;z-index:100;
+  background:rgba(0,0,0,0.92);
+  justify-content:center;align-items:center;
+  cursor:zoom-out;
+}
+.lightbox.open{display:flex}
+.lightbox img{
+  max-width:92vw;max-height:92vh;object-fit:contain;
+  border-radius:4px;
+}
+.lightbox-close{
+  position:absolute;top:12px;right:16px;
+  background:none;border:none;color:#fff;font-size:28px;
+  cursor:pointer;opacity:0.7;z-index:101;
+}
+.lightbox-close:hover{opacity:1}
 .img-card .img-caption{
   padding:6px 8px;font-family:var(--font-ui);font-size:10px;
   color:var(--text-dim);line-height:1.3;
@@ -313,7 +332,7 @@ select:focus{border-color:var(--accent-light)}
   position:relative;overflow:hidden;cursor:pointer;
   aspect-ratio:1;background:var(--surface2);
 }
-.gallery-card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.3s}
+.gallery-card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.3s;cursor:pointer}
 .gallery-card:active img{transform:scale(1.05)}
 .gallery-card.has-letter{cursor:pointer}
 .gallery-card.has-letter::after{
@@ -445,9 +464,12 @@ select:focus{border-color:var(--accent-light)}
     </div>
   </div>
 </div>
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <button class="lightbox-close" onclick="closeLightbox(event)">✕</button>
+  <img id="lightbox-img" src="">
+</div>
 
-<script>
-// ══════════════════════════════════════
+<script>// ══════════════════════════════════════
 // IMAGE CONFIGURATION
 // 画像の差し替え設定。許可が下りない場合はここを変更する
 // ══════════════════════════════════════
@@ -493,7 +515,7 @@ function renderImage(url, name, type) {
     return `<div class="img-placeholder">${esc(IMAGE_CONFIG.placeholderText)}</div>`;
   }
   const finalUrl = IMAGE_CONFIG.transformUrl(url, name, type);
-  return `<img src="${esc(finalUrl)}" alt="${esc(name)}" loading="lazy" onerror="this.outerHTML='<div class=\\'img-placeholder\\'>${esc(IMAGE_CONFIG.placeholderText)}</div>'">`;
+  return `<img src="${esc(finalUrl)}" alt="${esc(name)}" loading="lazy" onclick="openLightbox('${esc(finalUrl)}',event)" onerror="this.outerHTML='<div class=\\'img-placeholder\\'>${esc(IMAGE_CONFIG.placeholderText)}</div>'">`;
 }
 
 // ══════════════════════════════════════
@@ -776,9 +798,9 @@ async function renderGallery(){
     const letterNum=hasLetter?p.matched_letters[0]:'';
     const label=p.f_number||'';
     const title=p.title||'';
-    return`<div class="gallery-card${hasLetter?' has-letter':''}" onclick="${hasLetter?`galleryOpenLetter('${esc(letterNum)}')`:''}">
-      <img src="${esc(p.url)}" alt="${esc(title)}" loading="lazy" onerror="this.parentElement.style.display='none'">
-      <div class="gallery-overlay">
+    return`<div class="gallery-card${hasLetter?' has-letter':''}">
+      <img src="${esc(p.url)}" alt="${esc(title)}" loading="lazy" onclick="openLightbox('${esc(p.url)}',event)" onerror="this.parentElement.style.display='none'">
+      <div class="gallery-overlay" ${hasLetter?`onclick="galleryOpenLetter('${esc(letterNum)}')"`:''}>
         <div class="g-title">${esc(label?label+' ':'')}${esc(title)}</div>
         ${hasLetter?`<div class="g-letter">✉ ${esc(letterNum)}</div>`:`<div class="g-letter" style="opacity:0.5">ギャラリーのみ</div>`}
       </div>
@@ -789,6 +811,20 @@ window.galleryOpenLetter=function(num){
   switchTab('letters');
   const idx=filteredLetters.findIndex(l=>(l.number||l.id)===num);
   if(idx>=0)openDetail(idx);
+};
+
+// ══════════════════════════════════════
+// Lightbox
+// ══════════════════════════════════════
+window.openLightbox=function(url,e){
+  if(e)e.stopPropagation();
+  $('#lightbox-img').src=url;
+  $('#lightbox').classList.add('open');
+};
+window.closeLightbox=function(e){
+  if(e&&e.target.tagName==='IMG')return;
+  $('#lightbox').classList.remove('open');
+  $('#lightbox-img').src='';
 };
 
 // ══════════════════════════════════════
@@ -811,6 +847,7 @@ document.addEventListener('keydown',e=>{
     if(e.key==='Escape')$('#detail-view').classList.remove('active');
   }
   if($('#person-view').classList.contains('active')&&e.key==='Escape')$('#person-view').classList.remove('active');
+  if($('#lightbox').classList.contains('open')&&e.key==='Escape')closeLightbox();
 });
 </script>
 </body>
