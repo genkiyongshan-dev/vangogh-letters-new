@@ -2,3 +2,8 @@ vangogh_xml/
 *.py
 vangogh_letters_backup.json
 vangogh_raw.json
+vangogh_paintings/
+vangogh_download_progress.json
+vangogh_paintings_db.json
+vangogh_yes_list.json
+match_paintings.py

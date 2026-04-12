@@ -304,6 +304,45 @@ select:focus{border-color:var(--accent-light)}
 .person-name-ja{font-size:14px;color:var(--text-dim);margin-bottom:14px}
 .person-bio{font-size:14px;line-height:1.9;color:var(--text-mid);margin-bottom:20px}
 
+/* ── Gallery View ── */
+#gallery-view{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px}
+.gallery-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:2px;
+}
+.gallery-card{
+  position:relative;overflow:hidden;cursor:pointer;
+  aspect-ratio:1;background:var(--surface2);
+}
+.gallery-card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.3s}
+.gallery-card:active img{transform:scale(1.05)}
+.gallery-card.has-letter{cursor:pointer}
+.gallery-card.has-letter::after{
+  content:'✉';position:absolute;top:6px;right:6px;
+  font-size:12px;background:rgba(0,0,0,0.5);color:#fff;
+  width:24px;height:24px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+}
+.gallery-card .gallery-overlay{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(transparent,rgba(0,0,0,0.7));
+  padding:20px 8px 8px;opacity:0;transition:opacity 0.2s;
+}
+.gallery-card:hover .gallery-overlay{opacity:1}
+.gallery-overlay .g-title{
+  font-family:var(--font-ui);font-size:10px;color:#fff;
+  line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.gallery-overlay .g-letter{
+  font-family:var(--font-ui);font-size:9px;color:rgba(255,255,255,0.7);margin-top:2px;
+}
+/* Always show overlay on touch devices */
+@media(hover:none){
+  .gallery-card .gallery-overlay{opacity:1}
+}
+@media(min-width:768px){
+  .gallery-grid{grid-template-columns:repeat(4,1fr);gap:3px}
+}
+
 /* ── Empty ── */
 .empty-state{display:flex;align-items:center;justify-content:center;height:200px;color:var(--text-dim);font-size:13px}
 
@@ -348,6 +387,7 @@ select:focus{border-color:var(--accent-light)}
     <label class="file-btn" title="JSONファイルを読み込む">📂<input type="file" accept=".json" id="fileInput"></label>
     <button class="nav-tab active" id="tabLetters">手紙</button>
     <button class="nav-tab" id="tabPeople">人物</button>
+    <button class="nav-tab" id="tabGallery">🖼</button>
   </header>
 
   <div class="controls" id="controlsBar" style="display:none">
@@ -376,6 +416,10 @@ select:focus{border-color:var(--accent-light)}
     </div>
     <div id="list-view"></div>
     <div id="people-list" style="display:none"></div>
+    <div id="gallery-view" style="display:none">
+      <div id="gallery-grid" class="gallery-grid"></div>
+      <div id="gallery-empty" class="empty-state" style="display:none">絵画データがまだありません<br><span style="font-size:11px;margin-top:4px;display:block">画像データベースを構築中です</span></div>
+    </div>
 
     <div id="detail-view">
       <div class="detail-header">
@@ -483,8 +527,9 @@ function init(){
 // ── Tabs ──
 $('#tabLetters').addEventListener('click',()=>switchTab('letters'));
 $('#tabPeople').addEventListener('click',()=>switchTab('people'));
+$('#tabGallery').addEventListener('click',()=>switchTab('gallery'));
 $('#homeBtn').addEventListener('click',()=>{$('#detail-view').classList.remove('active');$('#person-view').classList.remove('active')});
-function switchTab(t){currentTab=t;$('#tabLetters').classList.toggle('active',t==='letters');$('#tabPeople').classList.toggle('active',t==='people');$('#detail-view').classList.remove('active');$('#person-view').classList.remove('active');if(t==='letters'){$('#list-view').style.display='';$('#people-list').style.display='none';$('#controlsBar').style.display=allLetters.length?'flex':'none'}else{$('#list-view').style.display='none';$('#people-list').style.display='';$('#controlsBar').style.display='none';renderPeopleList()}}
+function switchTab(t){currentTab=t;$('#tabLetters').classList.toggle('active',t==='letters');$('#tabPeople').classList.toggle('active',t==='people');$('#tabGallery').classList.toggle('active',t==='gallery');$('#detail-view').classList.remove('active');$('#person-view').classList.remove('active');if(t==='letters'){$('#list-view').style.display='';$('#people-list').style.display='none';$('#gallery-view').style.display='none';$('#controlsBar').style.display=allLetters.length?'flex':'none'}else if(t==='people'){$('#list-view').style.display='none';$('#people-list').style.display='';$('#gallery-view').style.display='none';$('#controlsBar').style.display='none';renderPeopleList()}else if(t==='gallery'){$('#list-view').style.display='none';$('#people-list').style.display='none';$('#gallery-view').style.display='';$('#controlsBar').style.display='none';renderGallery()}}
 
 // ── Helpers ──
 function hasSketches(l){return(l.sketch_images&&l.sketch_images.length>0)||false}
@@ -693,6 +738,58 @@ window.openPerson=function(name){
   $('#person-view').scrollTop=0;
 };
 window.openPersonLetter=function(num){$('#person-view').classList.remove('active');switchTab('letters');const idx=filteredLetters.findIndex(l=>(l.number||l.id)===num);if(idx>=0)openDetail(idx)};
+
+// ══════════════════════════════════════
+// Gallery View
+// ══════════════════════════════════════
+let galleryData=null;
+async function renderGallery(){
+  const grid=$('#gallery-grid');
+  const empty=$('#gallery-empty');
+  
+  // ギャラリーデータを読み込み（初回のみ）
+  if(!galleryData){
+    try{
+      const resp=await fetch('vangogh_gallery.json');
+      if(resp.ok)galleryData=await resp.json();
+    }catch(e){}
+  }
+  
+  // ギャラリーJSONがない場合は手紙データから取得（フォールバック）
+  let paintings=[];
+  if(galleryData&&galleryData.length){
+    paintings=galleryData.filter(p=>p.url);
+  }else{
+    allLetters.forEach(l=>{
+      if(l.painting_images){
+        l.painting_images.forEach(p=>{
+          if(p.url)paintings.push({url:p.url,title:p.name||'',matched_letters:[l.number||l.id]});
+        });
+      }
+    });
+  }
+  
+  if(!paintings.length){grid.innerHTML='';empty.style.display='flex';return}
+  empty.style.display='none';
+  grid.innerHTML=paintings.map(p=>{
+    const hasLetter=p.matched_letters&&p.matched_letters.length>0;
+    const letterNum=hasLetter?p.matched_letters[0]:'';
+    const label=p.f_number||'';
+    const title=p.title||'';
+    return`<div class="gallery-card${hasLetter?' has-letter':''}" onclick="${hasLetter?`galleryOpenLetter('${esc(letterNum)}')`:''}">
+      <img src="${esc(p.url)}" alt="${esc(title)}" loading="lazy" onerror="this.parentElement.style.display='none'">
+      <div class="gallery-overlay">
+        <div class="g-title">${esc(label?label+' ':'')}${esc(title)}</div>
+        ${hasLetter?`<div class="g-letter">✉ ${esc(letterNum)}</div>`:`<div class="g-letter" style="opacity:0.5">ギャラリーのみ</div>`}
+      </div>
+    </div>`
+  }).join('');
+}
+window.galleryOpenLetter=function(num){
+  switchTab('letters');
+  const idx=filteredLetters.findIndex(l=>(l.number||l.id)===num);
+  if(idx>=0)openDetail(idx);
+};
 
 // ══════════════════════════════════════
 // Navigation
