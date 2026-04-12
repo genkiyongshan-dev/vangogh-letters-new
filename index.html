@@ -528,7 +528,7 @@ $('#fileInputLanding').addEventListener('change',handleFile);
 // ══════════════════════════════════════
 // Boot
 // ══════════════════════════════════════
-const DATA_VERSION = 2; // ← データ更新時にここを+1する
+const DATA_VERSION = 3; // ← データ更新時にここを+1する
 (async()=>{
   const db=await openDB().catch(()=>null);
   let storedVersion=0;
