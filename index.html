@@ -528,12 +528,25 @@ $('#fileInputLanding').addEventListener('change',handleFile);
 // ══════════════════════════════════════
 // Boot
 // ══════════════════════════════════════
+const DATA_VERSION = 2; // ← データ更新時にここを+1する
 (async()=>{
-  const d=await loadData().catch(()=>null);
-  if(d&&d.length){allLetters=d;init();return}
+  const db=await openDB().catch(()=>null);
+  let storedVersion=0;
+  if(db){try{const t=db.transaction('data','readonly');const q=t.objectStore('data').get('version');await new Promise(r=>{q.onsuccess=()=>{storedVersion=q.result||0;r()};q.onerror=r})}catch(e){}}
+  
+  // バージョンが変わったらJSONから強制再読み込み
+  if(storedVersion===DATA_VERSION){
+    const d=await loadData().catch(()=>null);
+    if(d&&d.length){allLetters=d;init();return}
+  }
   try{
-    const resp=await fetch('letters_jp_final_with_paintings.json');
-    if(resp.ok){const data=await resp.json();allLetters=data;await saveData(data);init();return}
+    const resp=await fetch('letters_jp_final_with_paintings.json?v='+DATA_VERSION);
+    if(resp.ok){
+      const data=await resp.json();allLetters=data;await saveData(data);
+      // バージョン保存
+      if(db){try{const t=db.transaction('data','readwrite');t.objectStore('data').put(DATA_VERSION,'version')}catch(e){}}
+      init();return;
+    }
   }catch(e){}
 })();
 
